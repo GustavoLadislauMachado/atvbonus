@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.text.Font?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.meuprojeto.gui.MainViewController">
+   <padding>
+      <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+   </padding>
+   <children>
+      <Label text="Cadastro de Painéis Elétricos">
+         <font>
+            <Font name="System Bold" size="18.0" />
+         </font>
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+      </Label>
+
+      <HBox spacing="10.0" alignment="CENTER_LEFT">
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+         <children>
+            <TextField fx:id="txtNome" promptText="Nome do Painel" HBox.hgrow="ALWAYS" />
+            <DatePicker fx:id="dpDataInstalacao" promptText="Data de Instalação" />
+         </children>
+      </HBox>
+
+      <HBox spacing="10.0" alignment="CENTER_LEFT">
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+         <children>
+            <Button fx:id="btnNovo" mnemonicParsing="false" onAction="#onBtnNovoAction" text="Novo" />
+            <Button fx:id="btnSalvar" mnemonicParsing="false" onAction="#onBtnSalvarAction" text="Salvar" />
+            <Button fx:id="btnExcluir" mnemonicParsing="false" onAction="#onBtnExcluirAction" text="Excluir" />
+         </children>
+      </HBox>
+      
+      <Label text="Painéis Cadastrados">
+         <font>
+            <Font name="System Bold" size="14.0" />
+         </font>
+         <VBox.margin>
+            <Insets top="10.0" bottom="5.0" />
+         </VBox.margin>
+      </Label>
+      
+      <TableView fx:id="tableViewPainelEletrico" prefHeight="250.0" VBox.vgrow="ALWAYS">
+        <columns>
+          <TableColumn fx:id="tableColumnId" prefWidth="50.0" text="ID" />
+          <TableColumn fx:id="tableColumnNome" prefWidth="200.0" text="Nome" />
+          <TableColumn fx:id="tableColumnTipo" prefWidth="120.0" text="Tipo" />
+          <TableColumn fx:id="tableColumnDataInstalacao" prefWidth="150.0" text="Data Instalação" />
+          <TableColumn fx:id="tableColumnUltimaVerificacao" prefWidth="150.0" text="Última Verificação" />
+          <TableColumn fx:id="tableColumnVidaUtil" prefWidth="100.0" text="Vida Útil (anos)" />
+        </columns>
+      </TableView>
+   </children>
+</VBox>
+
+
+package com.meuprojeto.gui;
+
+import com.meuprojeto.model.entities.PainelEletrico;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+
+import java.net.URL;
+import java.sql.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.ResourceBundle;
+
+public class MainViewController implements Initializable {
+
+    // --- Variável de Estado ---
+    // Guarda o painel selecionado na tabela. Se for nulo, estamos criando um novo.
+    // Se tiver um objeto, estamos editando.
+    private PainelEletrico entidadeSelecionada;
+
+    // --- Conexão com Banco de Dados ---
+    private Connection getConnection() {
+        try {
+            Connection conn = DriverManager.getConnection("jdbc:h2:./paineis_db", "sa", "");
+            try (Statement st = conn.createStatement()) {
+                String sql = "CREATE TABLE IF NOT EXISTS paineleletrico ("
+                           + "Id INT PRIMARY KEY AUTO_INCREMENT, "
+                           + "Nome VARCHAR(255), Tipo VARCHAR(100), "
+                           + "DataInstalacao DATE, UltimaVerificacao DATE, "
+                           + "VidaUtil INT, FrequenciaManutencoes INT)";
+                st.execute(sql);
+            }
+            return conn;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            mostrarAlerta("Erro de Conexão", "Não foi possível conectar ao banco de dados.");
+            return null;
+        }
+    }
+
+    // --- Componentes da Interface Gráfica ---
+    @FXML private TextField txtNome;
+    @FXML private DatePicker dpDataInstalacao;
+    @FXML private Button btnNovo; // Novo botão
+    @FXML private Button btnSalvar;
+    @FXML private Button btnExcluir; // Novo botão
+    @FXML private TableView<PainelEletrico> tableViewPainelEletrico;
+    @FXML private TableColumn<PainelEletrico, Integer> tableColumnId;
+    @FXML private TableColumn<PainelEletrico, String> tableColumnNome;
+    @FXML private TableColumn<PainelEletrico, String> tableColumnTipo;
+    @FXML private TableColumn<PainelEletrico, LocalDate> tableColumnDataInstalacao;
+    @FXML private TableColumn<PainelEletrico, LocalDate> tableColumnUltimaVerificacao;
+    @FXML private TableColumn<PainelEletrico, Integer> tableColumnVidaUtil;
+
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        // Configura as colunas
+        tableColumnId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        tableColumnNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
+        tableColumnTipo.setCellValueFactory(new PropertyValueFactory<>("tipo"));
+        tableColumnDataInstalacao.setCellValueFactory(new PropertyValueFactory<>("dataInstalacao"));
+        tableColumnUltimaVerificacao.setCellValueFactory(new PropertyValueFactory<>("ultimaVerificacao"));
+        tableColumnVidaUtil.setCellValueFactory(new PropertyValueFactory<>("vidaUtil"));
+        
+        // ** NOVO: Listener para seleção na tabela **
+        // Quando um item é selecionado na tabela, chama o método para popular o formulário.
+        tableViewPainelEletrico.getSelectionModel().selectedItemProperty().addListener(
+            (observable, oldValue, newValue) -> popularFormulario(newValue)
+        );
+
+        updateTableView();
+    }
+    
+    // ** NOVO: Limpa o formulário e a seleção **
+    private void limparFormulario() {
+        txtNome.clear();
+        dpDataInstalacao.setValue(null);
+        this.entidadeSelecionada = null; // Essencial para o modo "criar"
+        tableViewPainelEletrico.getSelectionModel().clearSelection();
+    }
+    
+    // ** NOVO: Popula o formulário com dados de um painel **
+    private void popularFormulario(PainelEletrico painel) {
+        if (painel != null) {
+            this.entidadeSelecionada = painel;
+            txtNome.setText(painel.getNome());
+            dpDataInstalacao.setValue(painel.getDataInstalacao());
+        }
+    }
+
+    // ** NOVO: Ação do botão "Novo" **
+    @FXML
+    public void onBtnNovoAction() {
+        limparFormulario();
+    }
+
+    // ** MODIFICADO: Ação do botão "Salvar" agora faz INSERT ou UPDATE **
+    @FXML
+    public void onBtnSalvarAction() {
+        String nome = txtNome.getText();
+        LocalDate data = dpDataInstalacao.getValue();
+        if (nome.isEmpty() || data == null) {
+            mostrarAlerta("Campo Inválido", "Todos os campos devem ser preenchidos.");
+            return;
+        }
+
+        if (this.entidadeSelecionada == null) {
+            // --- MODO CRIAÇÃO (INSERT) ---
+            PainelEletrico novoPainel = new PainelEletrico(nome, data);
+            String sql = "INSERT INTO paineleletrico (Nome, Tipo, DataInstalacao, UltimaVerificacao, VidaUtil, FrequenciaManutencoes) VALUES (?, ?, ?, ?, ?, ?)";
+            try (Connection conn = getConnection(); PreparedStatement st = conn.prepareStatement(sql)) {
+                st.setString(1, novoPainel.getNome());
+                st.setString(2, novoPainel.getTipo());
+                st.setDate(3, Date.valueOf(novoPainel.getDataInstalacao()));
+                st.setDate(4, Date.valueOf(novoPainel.getUltimaVerificacao()));
+                st.setInt(5, novoPainel.getVidaUtil());
+                st.setInt(6, novoPainel.getFrequenciaManutencoes());
+                st.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        } else {
+            // --- MODO ATUALIZAÇÃO (UPDATE) ---
+            entidadeSelecionada.setNome(nome);
+            entidadeSelecionada.setDataInstalacao(data);
+            String sql = "UPDATE paineleletrico SET Nome = ?, DataInstalacao = ? WHERE Id = ?";
+            try (Connection conn = getConnection(); PreparedStatement st = conn.prepareStatement(sql)) {
+                st.setString(1, entidadeSelecionada.getNome());
+                st.setDate(2, Date.valueOf(entidadeSelecionada.getDataInstalacao()));
+                st.setInt(3, entidadeSelecionada.getId());
+                st.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        limparFormulario();
+        updateTableView();
+    }
+
+    // ** NOVO: Ação do botão "Excluir" **
+    @FXML
+    public void onBtnExcluirAction() {
+        PainelEletrico painelSelecionado = tableViewPainelEletrico.getSelectionModel().getSelectedItem();
+        if (painelSelecionado == null) {
+            mostrarAlerta("Nenhuma seleção", "Por favor, selecione um painel na tabela para excluir.");
+            return;
+        }
+
+        // Mostra uma caixa de diálogo para confirmação
+        Optional<ButtonType> resultado = mostrarConfirmacao("Confirmar Exclusão", 
+            "Tem certeza que deseja excluir o painel '" + painelSelecionado.getNome() + "'?");
+
+        if (resultado.isPresent() && resultado.get() == ButtonType.OK) {
+            String sql = "DELETE FROM paineleletrico WHERE Id = ?";
+            try (Connection conn = getConnection(); PreparedStatement st = conn.prepareStatement(sql)) {
+                st.setInt(1, painelSelecionado.getId());
+                st.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            updateTableView();
+            limparFormulario();
+        }
+    }
+
+    private void updateTableView() {
+        List<PainelEletrico> lista = new ArrayList<>();
+        String sql = "SELECT * FROM paineleletrico ORDER BY Nome";
+        try (Connection conn = getConnection(); PreparedStatement st = conn.prepareStatement(sql); ResultSet rs = st.executeQuery()) {
+            while (rs.next()) {
+                PainelEletrico obj = new PainelEletrico();
+                obj.setId(rs.getInt("Id"));
+                obj.setNome(rs.getString("Nome"));
+                obj.setTipo(rs.getString("Tipo"));
+                obj.setDataInstalacao(rs.getDate("DataInstalacao").toLocalDate());
+                obj.setUltimaVerificacao(rs.getDate("UltimaVerificacao").toLocalDate());
+                obj.setVidaUtil(rs.getInt("VidaUtil"));
+                obj.setFrequenciaManutencoes(rs.getInt("FrequenciaManutencoes"));
+                lista.add(obj);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        ObservableList<PainelEletrico> obsList = FXCollections.observableArrayList(lista);
+        tableViewPainelEletrico.setItems(obsList);
+    }
+    
+    // --- Métodos Utilitários de Alerta ---
+    private void mostrarAlerta(String titulo, String mensagem) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensagem);
+        alert.showAndWait();
+    }
+    
+    private Optional<ButtonType> mostrarConfirmacao(String titulo, String mensagem) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensagem);
+        return alert.showAndWait();
+    }
+}
