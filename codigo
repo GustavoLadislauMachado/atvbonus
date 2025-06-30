@@ -1,4 +1,4 @@
-package com.meuprojeto.model.entities;
+package com.meuprojeto.model.entities; // Por ainda não ter finalizado minhas classes no projeto, utilizei esse codinome "fantasma" na atividade.
 
 import java.time.LocalDate;
 
