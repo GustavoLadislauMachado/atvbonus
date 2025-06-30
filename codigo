@@ -1,0 +1,269 @@
+package com.meuprojeto.model.entities;
+
+import java.time.LocalDate;
+
+public class PainelEletrico {
+
+    private Integer id;
+    private String nome;
+    private String tipo;
+    private LocalDate dataInstalacao;
+    private LocalDate ultimaVerificacao;
+    private int vidaUtil;
+    private int frequenciaManutencoes;
+
+    // Construtor usado ao criar um novo painel via formulário
+    public PainelEletrico(String nome, LocalDate dataInstalacao) {
+        this.nome = nome;
+        this.dataInstalacao = dataInstalacao;
+        this.ultimaVerificacao = dataInstalacao; // Por padrão, é a mesma da instalação
+        this.tipo = "Painel Elétrico";
+        this.vidaUtil = 15; // Valor padrão
+        this.frequenciaManutencoes = 6; // Valor padrão
+    }
+
+    // Construtor usado para carregar dados do banco de dados
+    public PainelEletrico() {
+    }
+
+    // Getters e Setters
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
+    public String getNome() { return nome; }
+    public void setNome(String nome) { this.nome = nome; }
+    public String getTipo() { return tipo; }
+    public void setTipo(String tipo) { this.tipo = tipo; }
+    public LocalDate getDataInstalacao() { return dataInstalacao; }
+    public void setDataInstalacao(LocalDate dataInstalacao) { this.dataInstalacao = dataInstalacao; }
+    public LocalDate getUltimaVerificacao() { return ultimaVerificacao; }
+    public void setUltimaVerificacao(LocalDate ultimaVerificacao) { this.ultimaVerificacao = ultimaVerificacao; }
+    public int getVidaUtil() { return vidaUtil; }
+    public void setVidaUtil(int vidaUtil) { this.vidaUtil = vidaUtil; }
+    public int getFrequenciaManutencoes() { return frequenciaManutencoes; }
+    public void setFrequenciaManutencoes(int frequenciaManutencoes) { this.frequenciaManutencoes = frequenciaManutencoes; }
+}
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.text.Font?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.meuprojeto.gui.MainViewController">
+   <padding>
+      <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+   </padding>
+   <children>
+      <Label text="Cadastro de Painéis Elétricos">
+         <font>
+            <Font name="System Bold" size="18.0" />
+         </font>
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+      </Label>
+
+      <HBox spacing="10.0" alignment="CENTER_LEFT">
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+         <children>
+            <TextField fx:id="txtNome" promptText="Nome do Painel" HBox.hgrow="ALWAYS" />
+            <DatePicker fx:id="dpDataInstalacao" promptText="Data de Instalação" />
+            <Button fx:id="btnSalvar" mnemonicParsing="false" onAction="#onBtnSalvarAction" text="Salvar" />
+         </children>
+      </HBox>
+      
+      <Label text="Painéis Cadastrados">
+         <font>
+            <Font name="System Bold" size="14.0" />
+         </font>
+         <VBox.margin>
+            <Insets top="10.0" bottom="5.0" />
+         </VBox.margin>
+      </Label>
+      
+      <TableView fx:id="tableViewPainelEletrico" prefHeight="250.0" VBox.vgrow="ALWAYS">
+        <columns>
+          <TableColumn fx:id="tableColumnId" prefWidth="50.0" text="ID" />
+          <TableColumn fx:id="tableColumnNome" prefWidth="200.0" text="Nome" />
+          <TableColumn fx:id="tableColumnTipo" prefWidth="120.0" text="Tipo" />
+          <TableColumn fx:id="tableColumnDataInstalacao" prefWidth="150.0" text="Data Instalação" />
+          <TableColumn fx:id="tableColumnUltimaVerificacao" prefWidth="150.0" text="Última Verificação" />
+          <TableColumn fx:id="tableColumnVidaUtil" prefWidth="100.0" text="Vida Útil (anos)" />
+        </columns>
+      </TableView>
+   </children>
+</VBox>
+
+
+package com.meuprojeto.gui;
+
+import com.meuprojeto.model.entities.PainelEletrico;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+
+import java.net.URL;
+import java.sql.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+
+public class MainViewController implements Initializable {
+
+    // --- Conexão com Banco de Dados ---
+    private Connection getConnection() {
+        try {
+            // Conecta a um banco H2 no diretório do projeto
+            Connection conn = DriverManager.getConnection("jdbc:h2:./paineis_db", "sa", "");
+            
+            // Cria a tabela se ela ainda não existir
+            try (Statement st = conn.createStatement()) {
+                String sql = "CREATE TABLE IF NOT EXISTS paineleletrico ("
+                           + "Id INT PRIMARY KEY AUTO_INCREMENT, "
+                           + "Nome VARCHAR(255), Tipo VARCHAR(100), "
+                           + "DataInstalacao DATE, UltimaVerificacao DATE, "
+                           + "VidaUtil INT, FrequenciaManutencoes INT)";
+                st.execute(sql);
+            }
+            return conn;
+        } catch (SQLException e) {
+            e.printStackTrace(); // Em um app real, trate a exceção de forma mais robusta
+            return null;
+        }
+    }
+
+    // --- Componentes da Interface Gráfica ---
+    @FXML private TextField txtNome;
+    @FXML private DatePicker dpDataInstalacao;
+    @FXML private Button btnSalvar;
+    @FXML private TableView<PainelEletrico> tableViewPainelEletrico;
+    @FXML private TableColumn<PainelEletrico, Integer> tableColumnId;
+    @FXML private TableColumn<PainelEletrico, String> tableColumnNome;
+    @FXML private TableColumn<PainelEletrico, String> tableColumnTipo;
+    @FXML private TableColumn<PainelEletrico, LocalDate> tableColumnDataInstalacao;
+    @FXML private TableColumn<PainelEletrico, LocalDate> tableColumnUltimaVerificacao;
+    @FXML private TableColumn<PainelEletrico, Integer> tableColumnVidaUtil;
+
+    // --- Ações e Lógica ---
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        // Configura as colunas para lerem as propriedades da classe PainelEletrico
+        tableColumnId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        tableColumnNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
+        tableColumnTipo.setCellValueFactory(new PropertyValueFactory<>("tipo"));
+        tableColumnDataInstalacao.setCellValueFactory(new PropertyValueFactory<>("dataInstalacao"));
+        tableColumnUltimaVerificacao.setCellValueFactory(new PropertyValueFactory<>("ultimaVerificacao"));
+        tableColumnVidaUtil.setCellValueFactory(new PropertyValueFactory<>("vidaUtil"));
+        
+        updateTableView(); // Carrega os dados na tabela ao iniciar
+    }
+
+    @FXML
+    public void onBtnSalvarAction() {
+        // 1. Coletar dados do formulário
+        String nome = txtNome.getText();
+        LocalDate data = dpDataInstalacao.getValue();
+        if (nome.isEmpty() || data == null) {
+            // Validação simples
+            System.out.println("Por favor, preencha todos os campos.");
+            return;
+        }
+        PainelEletrico novoPainel = new PainelEletrico(nome, data);
+
+        // 2. Inserir no banco de dados
+        String sql = "INSERT INTO paineleletrico (Nome, Tipo, DataInstalacao, UltimaVerificacao, VidaUtil, FrequenciaManutencoes) VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement st = conn.prepareStatement(sql)) {
+            
+            st.setString(1, novoPainel.getNome());
+            st.setString(2, novoPainel.getTipo());
+            st.setDate(3, Date.valueOf(novoPainel.getDataInstalacao()));
+            st.setDate(4, Date.valueOf(novoPainel.getUltimaVerificacao()));
+            st.setInt(5, novoPainel.getVidaUtil());
+            st.setInt(6, novoPainel.getFrequenciaManutencoes());
+            st.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        // 3. Limpar formulário e atualizar tabela
+        txtNome.clear();
+        dpDataInstalacao.setValue(null);
+        updateTableView();
+    }
+
+    private void updateTableView() {
+        List<PainelEletrico> lista = new ArrayList<>();
+        String sql = "SELECT * FROM paineleletrico ORDER BY Nome";
+
+        try (Connection conn = getConnection();
+             PreparedStatement st = conn.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
+
+            while (rs.next()) {
+                PainelEletrico obj = new PainelEletrico();
+                obj.setId(rs.getInt("Id"));
+                obj.setNome(rs.getString("Nome"));
+                obj.setTipo(rs.getString("Tipo"));
+                obj.setDataInstalacao(rs.getDate("DataInstalacao").toLocalDate());
+                obj.setUltimaVerificacao(rs.getDate("UltimaVerificacao").toLocalDate());
+                obj.setVidaUtil(rs.getInt("VidaUtil"));
+                obj.setFrequenciaManutencoes(rs.getInt("FrequenciaManutencoes"));
+                lista.add(obj);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        
+        ObservableList<PainelEletrico> obsList = FXCollections.observableArrayList(lista);
+        tableViewPainelEletrico.setItems(obsList);
+    }
+}
+
+
+
+package com.meuprojeto.application;
+
+import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+import java.io.IOException;
+
+public class Main extends Application {
+    @Override
+    public void start(Stage stage) throws IOException {
+        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/com/meuprojeto/gui/MainView.fxml"));
+        Parent root = fxmlLoader.load();
+        Scene scene = new Scene(root);
+        stage.setTitle("Cadastro de Painéis Elétricos (Simples)");
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch();
+    }
+}
+
+
+
+
